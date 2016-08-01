@@ -18,9 +18,9 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class KafkaETLConsumer {
+public class KafkaETLParquetConsumer {
 
-    private static Logger log = LoggerFactory.getLogger(KafkaETLConsumer.class);
+    private static Logger log = LoggerFactory.getLogger(KafkaETLParquetConsumer.class);
 
     public static final String CONF_HADOOP_CONF_DIR = "hadoop.conf.dir";
     public static final String CONF_BLOCK_SIZE = "block.size";
@@ -49,12 +49,18 @@ public class KafkaETLConsumer {
         }
     }
 
-    public KafkaETLConsumer(Properties kafkaConsumerProps, List<String> topics, long pollTimeout, Map<String,String> parquetProps, AvroDeserializeService avroDeserializeService)
+    public KafkaETLParquetConsumer(Properties kafkaConsumerProps, List<String> topics, long pollTimeout, Map<String,String> parquetProps, AvroDeserializeService avroDeserializeService)
     {
         this.kafkaConsumerProps = kafkaConsumerProps;
+
+        // set auto commit to false.
+        this.kafkaConsumerProps.put("enable.auto.commit", "false");
+
+
         this.topics = topics;
         this.pollTimeout = pollTimeout;
         this.parquetProps = parquetProps;
+
         this.avroDeserializeService = avroDeserializeService;
     }
 
@@ -172,9 +178,9 @@ public class KafkaETLConsumer {
 
                     long currentSeq = seq.getAndIncrement();
 
-                    String parquetPartFileName = topic + "-" + partition + "-" + currentSeq + ".parquet";
+                    String parquetPartFileName = "part-" + partition + "-" + currentSeq + ".parquet";
 
-                    String path = output + "/" + dateString + "/" + parquetPartFileName;
+                    String path = output + "/" + topic + "/" + dateString + "/" + parquetPartFileName;
 
                     // avro schema.
                     Schema avroSchema = avroDeserializeService.getSchema(topic);

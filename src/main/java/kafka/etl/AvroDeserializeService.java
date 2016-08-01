@@ -10,8 +10,8 @@ import java.nio.ByteBuffer;
  */
 public interface AvroDeserializeService {
 
-    public GenericRecord deserializeAvro(String eventType, byte[] avroBytes);
+    public GenericRecord deserializeAvro(String topic, byte[] avroBytes);
 
-    public Schema getSchema(String eventType);
+    public Schema getSchema(String topic);
 
 }

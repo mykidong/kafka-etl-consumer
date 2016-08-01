@@ -3,6 +3,7 @@ package kafka.etl;
 
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServerStartable;
+import org.apache.commons.io.FileUtils;
 import org.apache.log4j.xml.DOMConfigurator;
 import org.apache.zookeeper.server.ServerConfig;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
@@ -12,6 +13,7 @@ import org.junit.Test;
 import org.springframework.beans.factory.config.PropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
@@ -29,14 +31,23 @@ public class RunLocalKafka {
 
     @Test
     public void startKafka() throws Exception {
-
-        String kafkaDataPath = System.getProperty("kafkaDataPath", "/tmp/kafka-data");
-
         Properties kafkaProperties = this.getProperties("kafkaPropLocal.properties");
-
-        kafkaProperties.put("log.dir", kafkaDataPath);
-
         Properties zkProperties = this.getProperties("zkPropLocal.properties");
+
+        // delete kafka, zookeeper data directories.
+        String kafkaDataPath = kafkaProperties.getProperty("log.dir");
+        File kafkaDir = new File(kafkaDataPath);
+        if(kafkaDir.exists()) {
+            FileUtils.deleteDirectory(kafkaDir);
+            System.out.println("kafka data dir deleted...");
+        }
+
+        String zkDataPath = zkProperties.getProperty("dataDir");
+        File zkDir = new File(zkDataPath);
+        if(zkDir.exists()) {
+            FileUtils.deleteDirectory(zkDir);
+            System.out.println("zookeeper dir deleted...");
+        }
 
         try {
             //start kafka

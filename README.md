@@ -51,7 +51,7 @@ Kafka Consumer Properties should be set correctly:
 ```
 , where enable.auto.commit must be false.
 
-To set topics which should be consumed from kafka:
+To set topics whose data should be consumed from kafka:
 ```
         // topic list which should consume.
         List<String> topics = new ArrayList<>();

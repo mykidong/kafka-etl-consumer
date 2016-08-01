@@ -1,5 +1,7 @@
 package kafka.etl;
 
+import kafka.etl.deserialize.ClasspathAvroDeserializeService;
+import kafka.etl.deserialize.ConsulAvroDeserializeService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;

@@ -1,6 +1,7 @@
 package kafka.etl;
 
 
+import kafka.etl.deserialize.AvroDeserializeService;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;

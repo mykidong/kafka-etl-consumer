@@ -1,4 +1,4 @@
-package kafka.etl;
+package kafka.etl.deserialize;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;

@@ -1,4 +1,4 @@
-package kafka.etl;
+package kafka.local;
 
 
 import kafka.server.KafkaConfig;

@@ -1,4 +1,4 @@
-package kafka.etl;
+package kafka.etl.deserialize;
 
 import com.ecwid.consul.v1.ConsulClient;
 import com.ecwid.consul.v1.Response;

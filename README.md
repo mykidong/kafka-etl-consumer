@@ -7,6 +7,8 @@ It is inspired from [Kafka Connect](http://docs.confluent.io/3.0.0/connect/) whi
 
 This Kafka ETL is independent of confluent's schema registry, and the implementations of avro schema registry are classpath and consul from which avro schema will be retrieved by topic name.
 
+It could be scaled out with docker container in which this kafka etl runs.
+
 It supports multiple topics with data pattern.
 
 The output parquet file convention is like this:

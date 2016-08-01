@@ -15,7 +15,7 @@ public class KafkaETLParquetConsumerTestSkip {
 
     private static Logger log;
 
-    private String output = "/data/kafka-etl-test";
+    private String output = "/data/kafka-etl-parquet-test";
 
     @Before
     public void init() throws Exception {

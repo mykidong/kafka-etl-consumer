@@ -42,7 +42,7 @@ public class RunLocalKafka {
             //start kafka
             KafkaLocal kafka = new KafkaLocal(kafkaProperties, zkProperties);
 
-            Thread.sleep(5000);
+            Thread.sleep(Long.MAX_VALUE);
         } catch (Exception e){
             e.printStackTrace(System.out);
             System.err.println("Error running local Kafka broker");

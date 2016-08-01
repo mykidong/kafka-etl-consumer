@@ -157,3 +157,18 @@ Run Kafka avro message producer.
 mvn -e -Dtest=GenericRecordKafkaProducer -Dbrokers=localhost:9092 test;
 ```
 
+
+### Consul Avro Schema Registry Implementation
+To use Consul which can be used as Avro Schema Registry, kafka etl consumer runs as follows:
+```
+        KafkaETLParquetConsumer kafkaETLConsumer =
+                new KafkaETLParquetConsumer(kafkaConsumerProps, topics, pollTimeout, parquetProps, new ConsulAvroDeserializeService(topicAndPathProps, agentHost, agentPort));
+        kafkaETLConsumer.run();
+```
+
+Run Test Case.
+```
+mvn -e -Dtest=KafkaETLParquetConsumerTestSkip#runForConsul -Dbrokers=localhost:9092 test;
+```
+
+

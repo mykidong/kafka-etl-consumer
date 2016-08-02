@@ -3,9 +3,9 @@
 This Kafka ETL consumes avro encoded data from Kafka and saves it to Parquet on HDFS.
 It acts like camus which is mapreduce library.
 
-It is inspired from [Kafka Connect](http://docs.confluent.io/3.0.0/connect/) which almost depends on confluent's [Schema Registry](http://docs.confluent.io/1.0/schema-registry/docs/index.html). 
+It is inspired from [Kafka Connect](http://docs.confluent.io/3.0.0/connect/). 
 
-This Kafka ETL is independent of confluent's schema registry, and the implementations of avro schema registry are classpath and consul from which avro schema will be retrieved by topic name.
+This Kafka ETL supports currently classpath registry and consul registry for the avro schema registry from which avro schema will be retrieved by topic name.
 
 It could be scaled out with docker container in which this kafka etl runs.
 
@@ -160,8 +160,8 @@ mvn -e -Dtest=GenericRecordKafkaProducer -Dbrokers=localhost:9092 test;
 ```
 
 
-### Consul Avro Schema Registry Implementation
-To use Consul which can be used as Avro Schema Registry, kafka etl consumer runs as follows:
+### Consul Avro Schema Registry Usage
+To use Consul Avro Schema Registry, kafka etl consumer runs as follows:
 ```
         KafkaETLParquetConsumer kafkaETLConsumer =
                 new KafkaETLParquetConsumer(kafkaConsumerProps, topics, pollTimeout, parquetProps, new ConsulAvroDeserializeService(topicAndPathProps, agentHost, agentPort));

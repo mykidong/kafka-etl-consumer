@@ -253,7 +253,7 @@ public class KafkaETLParquetConsumer {
 
                 while(true)
                 {
-                   path = getPath(output, dateString, topic, partition);
+                    path = getPath(output, dateString, topic, partition);
                     if(!this.fileExists(path))
                     {
                         break;
@@ -366,10 +366,12 @@ public class KafkaETLParquetConsumer {
             } finally {
                 try {
                     flushAndCommit(latestTpMap, true);
+                    log.info("parquet file rolled and offset committed before consumer closes...");
                 } finally {
                     consumer.close();
+
+                    log.info("Closed consumer and we are done");
                 }
-                log.info("Closed consumer and we are done");
             }
         }
 

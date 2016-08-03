@@ -274,13 +274,15 @@ public class KafkaETLParquetConsumer {
 
 
                         ParquetWriter<GenericRecord> writer = this.writerMap.get(tp);
-                        try {
-                            //log.info("value in json: [{}]", genericRecord.toString());
+                        if(writer != null) {
+                            try {
+                                //log.info("value in json: [{}]", genericRecord.toString());
 
-                            writer.write(genericRecord);
-                        } catch (Exception e) {
-                            log.error("error: " + e.getMessage());
-                            throw new RuntimeException(e);
+                                writer.write(genericRecord);
+                            } catch (Exception e) {
+                                log.error("error: " + e.getMessage());
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
 

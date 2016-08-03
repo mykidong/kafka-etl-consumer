@@ -249,11 +249,21 @@ public class KafkaETLParquetConsumer {
                 String topic = tp.topic();
                 int partition = tp.partition();
 
-                long currentSeq = seq.getAndIncrement();
+                String path = null;
 
-                String parquetPartFileName = "part-" + partition + "-" + currentSeq + ".parquet";
+                while(true)
+                {
+                   path = getPath(output, dateString, topic, partition);
+                    if(!this.fileExists(path))
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        log.info("file [{}] already exists!", path);
+                    }
+                }
 
-                String path = output + "/" + topic + "/" + dateString + "/" + parquetPartFileName;
 
                 // avro schema.
                 Schema avroSchema = avroDeserializeService.getSchema(topic);
@@ -272,6 +282,26 @@ public class KafkaETLParquetConsumer {
                     log.error("error: " + e.getMessage());
                     throw new RuntimeException(e);
                 }
+            }
+        }
+
+        private String getPath(String output, String dateString, String topic, int partition) {
+            long currentSeq = seq.getAndIncrement();
+
+            String parquetPartFileName = "part-" + partition + "-" + currentSeq + ".parquet";
+
+            return output + "/" + topic + "/" + dateString + "/" + parquetPartFileName;
+        }
+
+        private boolean fileExists(String path)
+        {
+            try {
+                FileSystem fs = FileSystem.get(this.conf);
+
+                return fs.exists(new Path(path));
+            }catch (Exception e)
+            {
+                throw new RuntimeException(e);
             }
         }
 
@@ -434,9 +464,8 @@ public class KafkaETLParquetConsumer {
                             });
                         }
                     } catch (Exception e) {
-                        e.printStackTrace();
-
                         log.error("error: " + e);
+                        throw new RuntimeException(e);
                     }
                 }
 

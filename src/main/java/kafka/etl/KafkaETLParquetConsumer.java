@@ -328,41 +328,39 @@ public class KafkaETLParquetConsumer {
 
 
         public void flushAndCommit(Map<TopicPartition, OffsetAndMetadata> latestTpMap, boolean commitSync) {
-            for(TopicPartition tp : writerMap.keySet())
-            {
-                ParquetWriter<GenericRecord> writer = writerMap.get(tp);
+            if(writerMap != null) {
+                for (TopicPartition tp : writerMap.keySet()) {
+                    ParquetWriter<GenericRecord> writer = writerMap.get(tp);
 
-                String meta = tp.toString() + ":" + new Date().toString();
+                    String meta = tp.toString() + ":" + new Date().toString();
 
-                try {
-                    writer.close();
+                    try {
+                        writer.close();
 
-                    log.info("closed writer: [{}]", tp.toString());
+                        log.info("closed writer: [{}]", tp.toString());
 
-                    OffsetAndMetadata offset = latestTpMap.get(tp);
+                        OffsetAndMetadata offset = latestTpMap.get(tp);
 
-                    Map<TopicPartition, OffsetAndMetadata> commitTp = new HashMap<>();
-                    commitTp.put(tp, new OffsetAndMetadata(offset.offset(), meta));
+                        Map<TopicPartition, OffsetAndMetadata> commitTp = new HashMap<>();
+                        commitTp.put(tp, new OffsetAndMetadata(offset.offset(), meta));
 
-                    if(commitSync)
-                    {
-                        consumer.commitSync(commitTp);
-                    }
-                    else {
+                        if (commitSync) {
+                            consumer.commitSync(commitTp);
+                        } else {
 
-                        consumer.commitAsync(commitTp, new OffsetCommitCallback() {
-                            @Override
-                            public void onComplete(Map<TopicPartition, OffsetAndMetadata> map, Exception e) {
-                                for (TopicPartition commitTp : map.keySet()) {
-                                    log.info("commited topic and partition: [{}], offset: [{}]", commitTp.toString(), map.get(commitTp).toString());
+                            consumer.commitAsync(commitTp, new OffsetCommitCallback() {
+                                @Override
+                                public void onComplete(Map<TopicPartition, OffsetAndMetadata> map, Exception e) {
+                                    for (TopicPartition commitTp : map.keySet()) {
+                                        log.info("commited topic and partition: [{}], offset: [{}]", commitTp.toString(), map.get(commitTp).toString());
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
+                    } catch (Exception e) {
+                        log.error("error: " + e);
+                        throw new RuntimeException(e);
                     }
-                }catch (Exception e)
-                {
-                    log.error("error: " + e);
-                    throw new RuntimeException(e);
                 }
             }
         }

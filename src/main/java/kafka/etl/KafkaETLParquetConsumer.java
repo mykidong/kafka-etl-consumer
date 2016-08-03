@@ -325,7 +325,14 @@ public class KafkaETLParquetConsumer {
             @Override
             public void onPartitionsAssigned(Collection<TopicPartition> collection) {
                 this.etlTask.setCurrentPartitions(collection);
-                log.info("new partitions assigned: [{}]", collection.toArray().toString());
+
+                for(TopicPartition tp : collection)
+                {
+                    String topic = tp.topic();
+                    int partition = tp.partition();
+
+                    log.info("new partition assigned: topic [{}], parition [{}]", topic, partition);
+                }
             }
         }
 

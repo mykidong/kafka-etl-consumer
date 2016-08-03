@@ -319,11 +319,13 @@ public class KafkaETLParquetConsumer {
             @Override
             public void onPartitionsRevoked(Collection<TopicPartition> collection) {
                 this.etlTask.flushAndCommit(this.etlTask.getLatestTpMap(), true);
+                log.info("parquet file rolled and offset commited...");
             }
 
             @Override
             public void onPartitionsAssigned(Collection<TopicPartition> collection) {
                 this.etlTask.setCurrentPartitions(collection);
+                log.info("new partitions assigned: [{}]", collection.toArray().toString());
             }
         }
 

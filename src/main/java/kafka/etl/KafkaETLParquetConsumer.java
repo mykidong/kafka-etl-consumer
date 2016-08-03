@@ -233,7 +233,7 @@ public class KafkaETLParquetConsumer {
 
                     writerMap.put(tp, writer);
 
-                    log.info("created writer: [{}]", tp.toString());
+                    log.info("created writer: [{}]", path);
                 } catch (Exception e) {
                     log.error("error: " + e.getMessage());
                     throw new RuntimeException(e);
@@ -375,6 +375,8 @@ public class KafkaETLParquetConsumer {
                             });
                         }
                     } catch (Exception e) {
+                        e.printStackTrace();
+
                         log.error("error: " + e);
                     }
                 }

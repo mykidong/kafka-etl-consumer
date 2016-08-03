@@ -376,7 +376,6 @@ public class KafkaETLParquetConsumer {
                         }
                     } catch (Exception e) {
                         log.error("error: " + e);
-                        throw new RuntimeException(e);
                     }
                 }
             }

@@ -7,7 +7,6 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.clients.consumer.*;
-import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.parquet.avro.AvroParquetWriter;
@@ -144,6 +143,14 @@ public class KafkaETLParquetConsumer {
 
         private Map<TopicPartition, OffsetAndMetadata> latestTpMap = new HashMap<>();
 
+        private Collection<TopicPartition> currentPartitions;
+
+
+        public void setCurrentPartitions(Collection<TopicPartition> topicPartitions)
+        {
+            this.currentPartitions = topicPartitions;
+        }
+
 
         public ETLTask(KafkaConsumer<Integer, byte[]> consumer, List<String> topics, long timeout, AvroDeserializeService avroDeserializeService, Map<String,String> parquetProps)
         {
@@ -181,7 +188,7 @@ public class KafkaETLParquetConsumer {
             }
         }
 
-        private void openParquetWriters(List<String> topics, AvroDeserializeService avroDeserializeService) {
+        private void openParquetWriters(AvroDeserializeService avroDeserializeService) {
             // compression codec.
             compressionCodecName = CompressionCodecName.SNAPPY;
             blockSize = (this.parquetProps.get(CONF_BLOCK_SIZE) != null) ? Integer.parseInt(this.parquetProps.get(CONF_BLOCK_SIZE)) : 256 * 1024 * 1024;
@@ -208,33 +215,28 @@ public class KafkaETLParquetConsumer {
 
             writerMap = new HashMap<>();
 
-            for(String topic : topics) {
-                List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
-                for(PartitionInfo partitionInfo : partitionInfos) {
+            for(TopicPartition tp : this.currentPartitions) {
+                String topic = tp.topic();
+                int partition = tp.partition();
 
-                    int partition = partitionInfo.partition();
+                long currentSeq = seq.getAndIncrement();
 
-                    TopicPartition tp = new TopicPartition(topic, partition);
+                String parquetPartFileName = "part-" + partition + "-" + currentSeq + ".parquet";
 
-                    long currentSeq = seq.getAndIncrement();
+                String path = output + "/" + topic + "/" + dateString + "/" + parquetPartFileName;
 
-                    String parquetPartFileName = "part-" + partition + "-" + currentSeq + ".parquet";
+                // avro schema.
+                Schema avroSchema = avroDeserializeService.getSchema(topic);
 
-                    String path = output + "/" + topic + "/" + dateString + "/" + parquetPartFileName;
+                try {
+                    ParquetWriter<GenericRecord> writer = new AvroParquetWriter<>(new Path(path), avroSchema, compressionCodecName, blockSize, pageSize, true, this.conf);
 
-                    // avro schema.
-                    Schema avroSchema = avroDeserializeService.getSchema(topic);
+                    writerMap.put(tp, writer);
 
-                    try {
-                        ParquetWriter<GenericRecord> writer = new AvroParquetWriter<>(new Path(path), avroSchema, compressionCodecName, blockSize, pageSize, true, this.conf);
-
-                        writerMap.put(tp, writer);
-
-                        log.info("created writer: [{}]", tp.toString());
-                    } catch (Exception e) {
-                        log.error("error: " + e.getMessage());
-                        throw new RuntimeException(e);
-                    }
+                    log.info("created writer: [{}]", tp.toString());
+                } catch (Exception e) {
+                    log.error("error: " + e.getMessage());
+                    throw new RuntimeException(e);
                 }
             }
         }
@@ -251,7 +253,7 @@ public class KafkaETLParquetConsumer {
                     if (records.count() > 0) {
                         if (this.shouldCreateWriters) {
                             log.info("new writers opened...");
-                            this.openParquetWriters(this.topics, this.avroDeserializeService);
+                            this.openParquetWriters(this.avroDeserializeService);
 
                             this.shouldCreateWriters = false;
                         }
@@ -321,7 +323,7 @@ public class KafkaETLParquetConsumer {
 
             @Override
             public void onPartitionsAssigned(Collection<TopicPartition> collection) {
-
+                this.etlTask.setCurrentPartitions(collection);
             }
         }
 

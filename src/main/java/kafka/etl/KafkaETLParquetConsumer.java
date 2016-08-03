@@ -32,13 +32,13 @@ public class KafkaETLParquetConsumer {
     public static final String CONF_INTERVAL_UNIT = "interval.unit";
     public static final String CONF_INTERVAL = "interval";
 
-    private Thread consumerThread;
-
     private Properties kafkaConsumerProps;
     private List<String> topics;
     private long pollTimeout;
     private Map<String,String> parquetProps;
     private AvroDeserializeService avroDeserializeService;
+
+    private ETLTask etlTask;
 
     private KafkaConsumer<Integer, byte[]> consumer;
 
@@ -71,13 +71,13 @@ public class KafkaETLParquetConsumer {
 
     public void run()
     {
-        consumerThread = new Thread(new ETLTask(this.consumer, topics, pollTimeout, avroDeserializeService, parquetProps));
-        consumerThread.start();
+        etlTask = new ETLTask(this.kafkaConsumerProps, topics, pollTimeout, avroDeserializeService, parquetProps);
+        etlTask.run();
 
         final Thread mainThread = Thread.currentThread();
 
         // Registering a shutdown hook so we can exit cleanly
-        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(this, mainThread));
+        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(etlTask, mainThread));
 
         log.info("kafka etl consumer started...");
     }
@@ -85,19 +85,19 @@ public class KafkaETLParquetConsumer {
 
     private static class ShutdownHookThread extends Thread
     {
-        private KafkaETLParquetConsumer kafkaETLParquetConsumer;
+        private ETLTask etlTask;
         private Thread mainThread;
 
-        public ShutdownHookThread(KafkaETLParquetConsumer kafkaETLParquetConsumer, Thread mainThread)
+        public ShutdownHookThread(ETLTask etlTask, Thread mainThread)
         {
-            this.kafkaETLParquetConsumer = kafkaETLParquetConsumer;
+            this.etlTask = etlTask;
             this.mainThread = mainThread;
         }
 
         public void run() {
             log.info("Starting exit...");
             // Note that shutdownhook runs in a separate thread, so the only thing we can safely do to a consumer is wake it up
-            kafkaETLParquetConsumer.consumer.wakeup();
+            etlTask.getConsumer().wakeup();
             try {
                 mainThread.join();
             } catch (InterruptedException e) {
@@ -107,19 +107,11 @@ public class KafkaETLParquetConsumer {
     }
 
 
-    public void stop()
+    private static class ETLTask
     {
-        if(consumerThread != null) {
-            consumerThread = null;
-        }
-    }
-
-    private static class ETLTask implements Runnable
-    {
+        private Properties kafkaConsumerProps;
         private List<String> topics;
         private long timeout;
-
-        private KafkaConsumer<Integer, byte[]> consumer;
 
         private AvroDeserializeService avroDeserializeService;
 
@@ -146,24 +138,32 @@ public class KafkaETLParquetConsumer {
 
         private final Object lock = new Object();
 
+        private KafkaConsumer<Integer, byte[]> consumer;
+
+        public ETLTask(Properties kafkaConsumerProps, List<String> topics, long timeout, AvroDeserializeService avroDeserializeService, Map<String,String> parquetProps)
+        {
+            this.kafkaConsumerProps = kafkaConsumerProps;
+            this.topics = topics;
+            this.timeout = timeout;
+            this.avroDeserializeService = avroDeserializeService;
+            this.parquetProps = parquetProps;
+
+            this.consumer = new KafkaConsumer<>(this.kafkaConsumerProps);
+
+            calcRollingIntervalInMillis();
+        }
+
 
         public void setCurrentPartitions(Collection<TopicPartition> topicPartitions)
         {
             this.currentPartitions = topicPartitions;
         }
 
-
-        public ETLTask(KafkaConsumer<Integer, byte[]> consumer, List<String> topics, long timeout, AvroDeserializeService avroDeserializeService, Map<String,String> parquetProps)
+        public KafkaConsumer<Integer, byte[]> getConsumer()
         {
-            this.topics = topics;
-            this.timeout = timeout;
-            this.avroDeserializeService = avroDeserializeService;
-            this.parquetProps = parquetProps;
-
-            this.consumer = consumer;
-
-            calcRollingIntervalInMillis();
+            return this.consumer;
         }
+
 
         public Map<TopicPartition, OffsetAndMetadata> getLatestTpMap()
         {
@@ -303,7 +303,6 @@ public class KafkaETLParquetConsumer {
             }
         }
 
-        @Override
         public void run() {
 
             try {

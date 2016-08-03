@@ -157,6 +157,12 @@ public class KafkaETLParquetConsumer {
             calcRollingIntervalInMillis();
         }
 
+        public Map<TopicPartition, OffsetAndMetadata> getLatestTpMap()
+        {
+            return this.latestTpMap;
+        }
+
+
         private void calcRollingIntervalInMillis() {
             String intervalUnit = this.parquetProps.get(CONF_INTERVAL_UNIT);
             int interval = Integer.parseInt((this.parquetProps.get(CONF_INTERVAL)));
@@ -235,9 +241,9 @@ public class KafkaETLParquetConsumer {
 
         @Override
         public void run() {
-            try {
 
-                consumer.subscribe(this.topics);
+            try {
+                consumer.subscribe(this.topics, new PartitionRebalancer(this));
 
                 while (true) {
                     ConsumerRecords<Integer, byte[]> records = consumer.poll(this.timeout);
@@ -280,7 +286,7 @@ public class KafkaETLParquetConsumer {
                     long diff = timestamp - this.currentTime;
                     if (diff > this.rollingIntervalInMillis) {
                         if (!this.shouldCreateWriters) {
-                            flushAndCommit(latestTpMap);
+                            flushAndCommit(latestTpMap, false);
 
                             this.currentTime = timestamp;
                             this.shouldCreateWriters = true;
@@ -290,14 +296,38 @@ public class KafkaETLParquetConsumer {
             } catch (WakeupException e) {
                 // ignore for shutdown
             } finally {
-                this.consumer.close();
+                try {
+                    flushAndCommit(latestTpMap, true);
+                } finally {
+                    consumer.close();
+                }
                 log.info("Closed consumer and we are done");
+            }
+        }
+
+        private static class PartitionRebalancer implements ConsumerRebalanceListener
+        {
+            private ETLTask etlTask;
+
+            public PartitionRebalancer(ETLTask etlTask)
+            {
+                this.etlTask = etlTask;
+            }
+
+            @Override
+            public void onPartitionsRevoked(Collection<TopicPartition> collection) {
+                this.etlTask.flushAndCommit(this.etlTask.getLatestTpMap(), true);
+            }
+
+            @Override
+            public void onPartitionsAssigned(Collection<TopicPartition> collection) {
+
             }
         }
 
 
 
-        private void flushAndCommit(Map<TopicPartition, OffsetAndMetadata> latestTpMap) {
+        public void flushAndCommit(Map<TopicPartition, OffsetAndMetadata> latestTpMap, boolean commitSync) {
             for(TopicPartition tp : writerMap.keySet())
             {
                 ParquetWriter<GenericRecord> writer = writerMap.get(tp);
@@ -314,14 +344,21 @@ public class KafkaETLParquetConsumer {
                     Map<TopicPartition, OffsetAndMetadata> commitTp = new HashMap<>();
                     commitTp.put(tp, new OffsetAndMetadata(offset.offset(), meta));
 
-                    consumer.commitAsync(commitTp, new OffsetCommitCallback() {
-                        @Override
-                        public void onComplete(Map<TopicPartition, OffsetAndMetadata> map, Exception e) {
-                            for(TopicPartition commitTp : map.keySet()) {
-                                log.info("commited topic and partition: [{}], offset: [{}]", commitTp.toString(), map.get(commitTp).toString());
+                    if(commitSync)
+                    {
+                        consumer.commitSync(commitTp);
+                    }
+                    else {
+
+                        consumer.commitAsync(commitTp, new OffsetCommitCallback() {
+                            @Override
+                            public void onComplete(Map<TopicPartition, OffsetAndMetadata> map, Exception e) {
+                                for (TopicPartition commitTp : map.keySet()) {
+                                    log.info("commited topic and partition: [{}], offset: [{}]", commitTp.toString(), map.get(commitTp).toString());
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 }catch (Exception e)
                 {
                     log.error("error: " + e);

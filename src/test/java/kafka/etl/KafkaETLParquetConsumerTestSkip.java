@@ -27,15 +27,6 @@ public class KafkaETLParquetConsumerTestSkip {
         DOMConfigurator.configure(url);
 
         log = LoggerFactory.getLogger(KafkaETLParquetConsumerTestSkip.class);
-
-        String hadoopConfDir = "/etc/hadoop/conf";
-
-        Configuration configuration = new Configuration();
-        configuration.addResource(new Path(hadoopConfDir + "/core-site.xml"));
-        configuration.addResource(new Path(hadoopConfDir + "/hdfs-site.xml"));
-
-        FileSystem fs = FileSystem.get(configuration);
-        fs.delete(new Path(output), true);
     }
 
     @Test

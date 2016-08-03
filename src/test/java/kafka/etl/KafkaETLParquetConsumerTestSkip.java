@@ -117,7 +117,5 @@ public class KafkaETLParquetConsumerTestSkip {
         KafkaETLParquetConsumer kafkaETLConsumer =
                 new KafkaETLParquetConsumer(kafkaConsumerProps, topics, pollTimeout, parquetProps, new ConsulAvroDeserializeService(topicAndPathProps, agentHost, agentPort));
         kafkaETLConsumer.run();
-
-        Thread.sleep(Long.MAX_VALUE);
     }
 }

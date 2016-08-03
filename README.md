@@ -141,8 +141,6 @@ Let's see the entire test case:
         KafkaETLParquetConsumer kafkaETLConsumer =
                 new KafkaETLParquetConsumer(kafkaConsumerProps, topics, pollTimeout, parquetProps, new ClasspathAvroDeserializeService(topicAndPathProps));
         kafkaETLConsumer.run();
-
-        Thread.sleep(Long.MAX_VALUE);
     }
 ```
 

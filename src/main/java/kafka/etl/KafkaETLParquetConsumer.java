@@ -309,7 +309,7 @@ public class KafkaETLParquetConsumer {
             }
         }
 
-        public synchronized void setNew()
+        public void setNew()
         {
             this.shouldCreateWriters = true;
             this.writerMap = null;
@@ -354,7 +354,7 @@ public class KafkaETLParquetConsumer {
 
 
         public void flushAndCommit(Map<TopicPartition, OffsetAndMetadata> latestTpMap, boolean commitSync) {
-            if(writerMap != null) {
+            if(writerMap != null && latestTpMap != null) {
                 for (TopicPartition tp : writerMap.keySet()) {
                     ParquetWriter<GenericRecord> writer = writerMap.get(tp);
 

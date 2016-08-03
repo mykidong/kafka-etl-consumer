@@ -5,6 +5,7 @@ import kafka.etl.deserialize.AvroDeserializeService;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
@@ -131,7 +132,7 @@ public class KafkaETLParquetConsumer {
         private int pageSize;
         private Configuration conf;
 
-        private Map<TopicPartition, ParquetWriter<GenericRecord>> writerMap;
+        private Map<TopicPartition, ParquetWriterInfo> writerMap;
 
         private AtomicLong seq = new AtomicLong(0);
 
@@ -141,9 +142,11 @@ public class KafkaETLParquetConsumer {
 
         private boolean shouldCreateWriters = true;
 
-        private Map<TopicPartition, OffsetAndMetadata> latestTpMap = new HashMap<>();
+        private Map<TopicPartition, OffsetAndMetadata> latestTpMap;
 
         private Collection<TopicPartition> currentPartitions;
+
+        private final Object lock = new Object();
 
 
         public void setCurrentPartitions(Collection<TopicPartition> topicPartitions)
@@ -166,7 +169,34 @@ public class KafkaETLParquetConsumer {
 
         public Map<TopicPartition, OffsetAndMetadata> getLatestTpMap()
         {
+            if(this.latestTpMap == null)
+            {
+                this.latestTpMap = new HashMap<>();
+            }
+
             return this.latestTpMap;
+        }
+
+        private static class ParquetWriterInfo
+        {
+            private ParquetWriter<GenericRecord> writer;
+            private String path;
+
+            public ParquetWriter<GenericRecord> getWriter() {
+                return writer;
+            }
+
+            public void setWriter(ParquetWriter<GenericRecord> writer) {
+                this.writer = writer;
+            }
+
+            public String getPath() {
+                return path;
+            }
+
+            public void setPath(String path) {
+                this.path = path;
+            }
         }
 
 
@@ -231,7 +261,11 @@ public class KafkaETLParquetConsumer {
                 try {
                     ParquetWriter<GenericRecord> writer = new AvroParquetWriter<>(new Path(path), avroSchema, compressionCodecName, blockSize, pageSize, true, this.conf);
 
-                    writerMap.put(tp, writer);
+                    ParquetWriterInfo parquetWriterInfo = new ParquetWriterInfo();
+                    parquetWriterInfo.setWriter(writer);
+                    parquetWriterInfo.setPath(path);
+
+                    writerMap.put(tp, parquetWriterInfo);
 
                     log.info("created writer: [{}]", path);
                 } catch (Exception e) {
@@ -273,7 +307,7 @@ public class KafkaETLParquetConsumer {
                         GenericRecord genericRecord = avroDeserializeService.deserializeAvro(topic, value);
 
 
-                        ParquetWriter<GenericRecord> writer = this.writerMap.get(tp);
+                        ParquetWriter<GenericRecord> writer = this.writerMap.get(tp).getWriter();
                         if(writer != null) {
                             try {
                                 //log.info("value in json: [{}]", genericRecord.toString());
@@ -320,6 +354,8 @@ public class KafkaETLParquetConsumer {
         {
             private ETLTask etlTask;
 
+            private final Object lock = new Object();
+
             public PartitionRebalancer(ETLTask etlTask)
             {
                 this.etlTask = etlTask;
@@ -327,10 +363,12 @@ public class KafkaETLParquetConsumer {
 
             @Override
             public void onPartitionsRevoked(Collection<TopicPartition> collection) {
-                this.etlTask.flushAndCommit(this.etlTask.getLatestTpMap(), true);
-                log.info("parquet file rolled and offset commited...");
+                synchronized (lock) {
+                    this.etlTask.flushAndCommit(this.etlTask.getLatestTpMap(), true);
+                    log.info("parquet file rolled and offset commited...");
 
-                this.etlTask.setNew();
+                    this.etlTask.setNew();
+                }
             }
 
             @Override
@@ -354,13 +392,25 @@ public class KafkaETLParquetConsumer {
 
 
         public void flushAndCommit(Map<TopicPartition, OffsetAndMetadata> latestTpMap, boolean commitSync) {
-            if(writerMap != null && latestTpMap != null) {
+            if (writerMap != null && latestTpMap.size() > 0) {
                 for (TopicPartition tp : writerMap.keySet()) {
-                    ParquetWriter<GenericRecord> writer = writerMap.get(tp);
+
+                    ParquetWriterInfo parquetWriterInfo = writerMap.get(tp);
+
+                    ParquetWriter<GenericRecord> writer = parquetWriterInfo.getWriter();
 
                     String meta = tp.toString() + ":" + new Date().toString();
 
+                    String path = parquetWriterInfo.getPath();
+
                     try {
+                        FileSystem fs = FileSystem.get(this.conf);
+
+                        if(!fs.exists(new Path(path)))
+                        {
+                            continue;
+                        }
+
                         writer.close();
 
                         log.info("closed writer: [{}]", tp.toString());
@@ -389,6 +439,8 @@ public class KafkaETLParquetConsumer {
                         log.error("error: " + e);
                     }
                 }
+
+                writerMap = null;
             }
         }
     }

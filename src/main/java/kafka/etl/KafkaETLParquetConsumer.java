@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -39,6 +40,9 @@ public class KafkaETLParquetConsumer {
     private Map<String,String> parquetProps;
     private AvroDeserializeService avroDeserializeService;
 
+    private KafkaConsumer<Integer, byte[]> consumer;
+
+
     public static enum IntervalUnit {
         DAY("DAY"), HOUR("HOUR"), MINUTE("MINUTE");
 
@@ -57,6 +61,8 @@ public class KafkaETLParquetConsumer {
         // set auto commit to false.
         this.kafkaConsumerProps.put("enable.auto.commit", "false");
 
+        consumer = new KafkaConsumer<>(this.kafkaConsumerProps);
+
 
         this.topics = topics;
         this.pollTimeout = pollTimeout;
@@ -67,10 +73,39 @@ public class KafkaETLParquetConsumer {
 
     public void run()
     {
-        consumerThread = new Thread(new ETLTask(kafkaConsumerProps, topics, pollTimeout, avroDeserializeService, parquetProps));
+        consumerThread = new Thread(new ETLTask(this.consumer, topics, pollTimeout, avroDeserializeService, parquetProps));
         consumerThread.start();
 
+        final Thread mainThread = Thread.currentThread();
+
+        // Registering a shutdown hook so we can exit cleanly
+        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(this, mainThread));
+
         log.info("kafka etl consumer started...");
+    }
+
+
+    private static class ShutdownHookThread extends Thread
+    {
+        private KafkaETLParquetConsumer kafkaETLParquetConsumer;
+        private Thread mainThread;
+
+        public ShutdownHookThread(KafkaETLParquetConsumer kafkaETLParquetConsumer, Thread mainThread)
+        {
+            this.kafkaETLParquetConsumer = kafkaETLParquetConsumer;
+            this.mainThread = mainThread;
+        }
+
+        public void run() {
+            log.info("Starting exit...");
+            // Note that shutdownhook runs in a separate thread, so the only thing we can safely do to a consumer is wake it up
+            kafkaETLParquetConsumer.consumer.wakeup();
+            try {
+                mainThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 
@@ -83,7 +118,6 @@ public class KafkaETLParquetConsumer {
 
     private static class ETLTask implements Runnable
     {
-        private Properties props;
         private List<String> topics;
         private long timeout;
 
@@ -111,15 +145,14 @@ public class KafkaETLParquetConsumer {
         private Map<TopicPartition, OffsetAndMetadata> latestTpMap = new HashMap<>();
 
 
-        public ETLTask(Properties props, List<String> topics, long timeout, AvroDeserializeService avroDeserializeService, Map<String,String> parquetProps)
+        public ETLTask(KafkaConsumer<Integer, byte[]> consumer, List<String> topics, long timeout, AvroDeserializeService avroDeserializeService, Map<String,String> parquetProps)
         {
-            this.props = props;
             this.topics = topics;
             this.timeout = timeout;
             this.avroDeserializeService = avroDeserializeService;
             this.parquetProps = parquetProps;
 
-            consumer = new KafkaConsumer<>(props);
+            this.consumer = consumer;
 
             calcRollingIntervalInMillis();
         }
@@ -202,58 +235,63 @@ public class KafkaETLParquetConsumer {
 
         @Override
         public void run() {
-            consumer.subscribe(this.topics);
+            try {
 
-            while(true) {
-                ConsumerRecords<Integer, byte[]> records = consumer.poll(this.timeout);
+                consumer.subscribe(this.topics);
 
-                if(records.count() > 0)
-                {
-                    if(this.shouldCreateWriters) {
-                        log.info("new writers opened...");
-                        this.openParquetWriters(this.topics, this.avroDeserializeService);
+                while (true) {
+                    ConsumerRecords<Integer, byte[]> records = consumer.poll(this.timeout);
 
-                        this.shouldCreateWriters = false;
+                    if (records.count() > 0) {
+                        if (this.shouldCreateWriters) {
+                            log.info("new writers opened...");
+                            this.openParquetWriters(this.topics, this.avroDeserializeService);
+
+                            this.shouldCreateWriters = false;
+                        }
+                    }
+
+
+                    for (ConsumerRecord<Integer, byte[]> record : records) {
+                        String topic = record.topic();
+                        int partition = record.partition();
+                        byte[] value = record.value();
+                        long offset = record.offset();
+
+                        TopicPartition tp = new TopicPartition(topic, partition);
+
+                        latestTpMap.put(tp, new OffsetAndMetadata(offset));
+
+                        GenericRecord genericRecord = avroDeserializeService.deserializeAvro(topic, value);
+
+
+                        ParquetWriter<GenericRecord> writer = this.writerMap.get(tp);
+                        try {
+                            //log.info("value in json: [{}]", genericRecord.toString());
+
+                            writer.write(genericRecord);
+                        } catch (Exception e) {
+                            log.error("error: " + e.getMessage());
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                    long timestamp = new Date().getTime();
+                    long diff = timestamp - this.currentTime;
+                    if (diff > this.rollingIntervalInMillis) {
+                        if (!this.shouldCreateWriters) {
+                            flushAndCommit(latestTpMap);
+
+                            this.currentTime = timestamp;
+                            this.shouldCreateWriters = true;
+                        }
                     }
                 }
-
-
-                for (ConsumerRecord<Integer, byte[]> record : records) {
-                    String topic = record.topic();
-                    int partition = record.partition();
-                    byte[] value = record.value();
-                    long offset = record.offset();
-
-                    TopicPartition tp = new TopicPartition(topic, partition);
-
-                    latestTpMap.put(tp, new OffsetAndMetadata(offset));
-
-                    GenericRecord genericRecord = avroDeserializeService.deserializeAvro(topic, value);
-
-
-                    ParquetWriter<GenericRecord> writer = this.writerMap.get(tp);
-                    try {
-                        //log.info("value in json: [{}]", genericRecord.toString());
-
-                        writer.write(genericRecord);
-                    }catch (Exception e)
-                    {
-                        log.error("error: " + e.getMessage());
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                long timestamp = new Date().getTime();
-                long diff = timestamp - this.currentTime;
-                if(diff > this.rollingIntervalInMillis)
-                {
-                    if(!this.shouldCreateWriters) {
-                        flushAndCommit(latestTpMap);
-
-                        this.currentTime = timestamp;
-                        this.shouldCreateWriters = true;
-                    }
-                }
+            } catch (WakeupException e) {
+                // ignore for shutdown
+            } finally {
+                this.consumer.close();
+                log.info("Closed consumer and we are done");
             }
         }
 

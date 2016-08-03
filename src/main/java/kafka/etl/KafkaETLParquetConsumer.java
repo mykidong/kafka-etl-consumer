@@ -115,13 +115,13 @@ public class KafkaETLParquetConsumer {
 
     public void run()
     {
-        consumerThread = new Thread(new ETLTask(this.consumer, topics, pollTimeout, avroDeserializeService, parquetProps));
-        consumerThread.start();
-
         final Thread mainThread = Thread.currentThread();
 
         // Registering a shutdown hook so we can exit cleanly
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(this, mainThread));
+
+        consumerThread = new Thread(new ETLTask(this.consumer, topics, pollTimeout, avroDeserializeService, parquetProps));
+        consumerThread.start();
 
         log.info("kafka etl consumer started...");
     }
@@ -142,9 +142,7 @@ public class KafkaETLParquetConsumer {
             log.info("Starting exit...");
             // Note that shutdownhook runs in a separate thread, so the only thing we can safely do to a consumer is wake it up
             kafkaETLParquetConsumer.consumer.wakeup();
-            try {
-                Thread.sleep(10000);
-
+            try {   
                 mainThread.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();

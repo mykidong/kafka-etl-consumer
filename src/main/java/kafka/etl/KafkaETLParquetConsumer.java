@@ -143,6 +143,8 @@ public class KafkaETLParquetConsumer {
             // Note that shutdownhook runs in a separate thread, so the only thing we can safely do to a consumer is wake it up
             kafkaETLParquetConsumer.consumer.wakeup();
             try {
+                Thread.sleep(10000);
+
                 mainThread.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();

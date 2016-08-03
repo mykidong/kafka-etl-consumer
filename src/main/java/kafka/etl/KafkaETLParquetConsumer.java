@@ -309,6 +309,13 @@ public class KafkaETLParquetConsumer {
             }
         }
 
+        public synchronized void setNew()
+        {
+            this.shouldCreateWriters = true;
+            this.writerMap = null;
+        }
+
+
         private static class PartitionRebalancer implements ConsumerRebalanceListener
         {
             private ETLTask etlTask;
@@ -322,6 +329,8 @@ public class KafkaETLParquetConsumer {
             public void onPartitionsRevoked(Collection<TopicPartition> collection) {
                 this.etlTask.flushAndCommit(this.etlTask.getLatestTpMap(), true);
                 log.info("parquet file rolled and offset commited...");
+
+                this.etlTask.setNew();
             }
 
             @Override

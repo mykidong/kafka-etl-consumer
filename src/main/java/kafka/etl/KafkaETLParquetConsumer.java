@@ -82,6 +82,11 @@ public class KafkaETLParquetConsumer {
         log.info("kafka etl consumer started...");
     }
 
+    public void stop()
+    {
+        etlTask.getConsumer().wakeup();
+    }
+
 
     private static class ShutdownHookThread extends Thread
     {

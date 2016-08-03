@@ -2,9 +2,6 @@ package kafka.etl;
 
 import kafka.etl.deserialize.ClasspathAvroDeserializeService;
 import kafka.etl.deserialize.ConsulAvroDeserializeService;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.log4j.xml.DOMConfigurator;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,25 +66,8 @@ public class KafkaETLParquetConsumerTestSkip {
 
         KafkaETLParquetConsumer kafkaETLConsumer =
                 new KafkaETLParquetConsumer(kafkaConsumerProps, topics, pollTimeout, parquetProps, new ClasspathAvroDeserializeService(topicAndPathProps));
-
-        Thread mainThread = Thread.currentThread();
-
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            public void run() {
-                System.out.println("Starting exit...");
-                // Note that shutdownhook runs in a separate thread, so the only thing we can safely do to a consumer is wake it up
-                kafkaETLConsumer.stop();
-                try {
-                    mainThread.join();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-
         kafkaETLConsumer.run();
     }
-
 
     @Test
     /**

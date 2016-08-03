@@ -347,7 +347,12 @@ public class KafkaETLParquetConsumer {
 
                     if(writer != null) {
                         try {
-                            writer.close();
+                            try {
+                                writer.close();
+                            }catch (NullPointerException ne)
+                            {
+                                return;
+                            }
 
                             log.info("closed writer: [{}]", tp.toString());
 

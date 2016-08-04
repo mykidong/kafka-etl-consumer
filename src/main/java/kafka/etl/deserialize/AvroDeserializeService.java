@@ -10,8 +10,21 @@ import java.nio.ByteBuffer;
  */
 public interface AvroDeserializeService {
 
+    /**
+     * deserialize avro bytes to generic record.
+     *
+     * @param topic topic name.
+     * @param avroBytes avro encoded bytes.
+     * @return
+     */
     public GenericRecord deserializeAvro(String topic, byte[] avroBytes);
 
+    /**
+     * get avro schema by topic name.
+     *
+     * @param topic topic name.
+     * @return
+     */
     public Schema getSchema(String topic);
 
 }

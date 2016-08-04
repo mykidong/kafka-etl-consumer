@@ -53,8 +53,6 @@ public class ETLTask {
 
     private Collection<TopicPartition> currentPartitions;
 
-    private final Object lock = new Object();
-
     private KafkaConsumer<Integer, byte[]> consumer;
 
     public ETLTask(Properties kafkaConsumerProps, List<String> topics, long timeout, AvroDeserializeService avroDeserializeService, Map<String,String> parquetProps)
@@ -133,6 +131,11 @@ public class ETLTask {
         }
     }
 
+    /**
+     * open parquet file writers.
+     *
+     * @param avroDeserializeService
+     */
     private void openParquetWriters(AvroDeserializeService avroDeserializeService) {
         // compression codec.
         compressionCodecName = CompressionCodecName.SNAPPY;
@@ -166,6 +169,8 @@ public class ETLTask {
 
             String path = null;
 
+            // check, if the file on hdfs already exists.
+            // if so, increase the sequence number and try to check again.
             while(true)
             {
                 path = getPath(output, dateString, topic, partition);
@@ -229,6 +234,8 @@ public class ETLTask {
                 ConsumerRecords<Integer, byte[]> records = consumer.poll(this.timeout);
 
                 if (records.count() > 0) {
+                    // when records is ready to consume and create writer flag is true,
+                    // open parquet writers for the partitions.
                     if (this.shouldCreateWriters) {
                         log.info("new writers opened...");
                         this.openParquetWriters(this.avroDeserializeService);
@@ -264,6 +271,8 @@ public class ETLTask {
 
                 long timestamp = new Date().getTime();
                 long diff = timestamp - this.currentTime;
+
+                // when rolling time is matched, the current messages consumed will be flushed into parquet files and offsets commited.
                 if (diff > this.rollingIntervalInMillis) {
                     if (!this.shouldCreateWriters) {
                         flushAndCommit(latestTpMap, false);
@@ -273,7 +282,10 @@ public class ETLTask {
                     }
                 }
             }
-        } catch (WakeupException e) {
+        }
+        // when consumer.wakeup() invoked in shutdown hook, WakeupException will be thrown.
+        // in finally block, before consumer closes, all the messages consumed from partitions will be flushed to parquet files and their offsets will be commited.
+        catch (WakeupException e) {
             log.info("wake up exception occurred: [{}]", e.getMessage());
         } finally {
             try {
@@ -287,6 +299,9 @@ public class ETLTask {
         }
     }
 
+    /**
+     * set flags to open parquet writers.
+     */
     public void setNew()
     {
         this.shouldCreateWriters = true;
@@ -294,6 +309,13 @@ public class ETLTask {
     }
 
 
+    /**
+     * Parquet writer will be closed where the part parquet files for the individual partition will be created on hdfs.
+     * After that, the individual partition offset will be commited.
+     *
+     * @param latestTpMap
+     * @param commitSync
+     */
     public void flushAndCommit(Map<TopicPartition, OffsetAndMetadata> latestTpMap, boolean commitSync) {
         if (writerMap != null && latestTpMap.size() > 0) {
             for (TopicPartition tp : writerMap.keySet()) {

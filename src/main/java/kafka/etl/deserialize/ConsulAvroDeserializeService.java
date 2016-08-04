@@ -10,7 +10,10 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
-
+/**
+ * This supports consul avro schema registry from which avro schema in json will be read, and the avro schema instance will be put to map.
+ *
+ */
 public class ConsulAvroDeserializeService extends AbstractAvroDeserializeService {
 
     private static Logger log = LoggerFactory.getLogger(ClasspathAvroDeserializeService.class);

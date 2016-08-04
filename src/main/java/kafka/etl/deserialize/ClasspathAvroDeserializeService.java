@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Properties;
 
 /**
- * Created by mykidong on 2016-08-01.
+ * This supports classpath avro schema registry from which avro schema file will be read, and the avro schema instance will be put to map.
  */
 public class ClasspathAvroDeserializeService extends AbstractAvroDeserializeService {
 

@@ -24,6 +24,11 @@ public class PartitionRebalancer implements ConsumerRebalanceListener{
         this.etlTask = etlTask;
     }
 
+    /**
+     * It is called before the rebalancing starts and after the consumer stopped consuming messages.
+     *
+     * @param collection
+     */
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> collection) {
         synchronized (lock) {
@@ -34,6 +39,11 @@ public class PartitionRebalancer implements ConsumerRebalanceListener{
         }
     }
 
+    /**
+     * It is called after partitions has been re-assigned to the broker, but before the consumer started consuming messages.
+     *
+     * @param collection
+     */
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> collection) {
         setNewPartitionsAssigned(collection);

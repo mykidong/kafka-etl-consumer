@@ -87,7 +87,8 @@ public class KafkaETLParquetConsumer {
 
         public void run() {
             log.info("Starting exit...");
-            // Note that shutdownhook runs in a separate thread, so the only thing we can safely do to a consumer is wake it up
+
+            // wake up consumer before exit.
             etlTask.getConsumer().wakeup();
             try {
                 mainThread.join();

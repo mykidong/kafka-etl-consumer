@@ -55,6 +55,8 @@ public class ETLTask {
 
     private KafkaConsumer<Integer, byte[]> consumer;
 
+    private boolean wakeupCalled = false;
+
     public ETLTask(Properties kafkaConsumerProps, List<String> topics, long timeout, AvroDeserializeService avroDeserializeService, Map<String,String> parquetProps)
     {
         this.kafkaConsumerProps = kafkaConsumerProps;
@@ -68,6 +70,9 @@ public class ETLTask {
         calcRollingIntervalInMillis();
     }
 
+    public void setWakeupCalled(boolean wakeupCalled) {
+        this.wakeupCalled = wakeupCalled;
+    }
 
     public void setCurrentPartitions(Collection<TopicPartition> topicPartitions)
     {
@@ -231,6 +236,14 @@ public class ETLTask {
             consumer.subscribe(this.topics, new PartitionRebalancer(this));
 
             while (true) {
+
+                // wakeupCalled flag to throw WakeupException, and after that,
+                // parquet file will be flushed and offsets committed before consumer closes.
+                if(wakeupCalled)
+                {
+                    throw new WakeupException();
+                }
+
                 ConsumerRecords<Integer, byte[]> records = consumer.poll(this.timeout);
 
                 if (records.count() > 0) {

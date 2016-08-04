@@ -71,6 +71,7 @@ public class KafkaETLParquetConsumer {
     public void stop()
     {
         etlTask.getConsumer().wakeup();
+        etlTask.setWakeupCalled(true);
     }
 
 
@@ -90,6 +91,10 @@ public class KafkaETLParquetConsumer {
 
             // wake up consumer before exit.
             etlTask.getConsumer().wakeup();
+
+            // if consumer wakeup invokation does not throw WakeupException,
+            // wakeupCalled flag set to true, in order to throw WakeupException.
+            etlTask.setWakeupCalled(true);
             try {
                 mainThread.join();
             } catch (InterruptedException e) {
